@@ -1,0 +1,97 @@
+import mysql.connector
+import csv
+import sqlite3
+
+cnx2=mysql.connector.connect(user='escalon2',password='3scal0n',host='47.60.8.56',database='escalondb2')
+cur2=cnx2.cursor()
+
+
+cnx3=sqlite3.connect('/home/palonso0/gmon.db')
+cur3=cnx3.cursor()
+cnx3.text_factory=str
+
+gmon_clf= open('gmon_LTE.csv','wb')
+
+wr= csv.writer(gmon_clf,delimiter=';',dialect='excel')
+
+
+#Consulta sobre Escal?n para obtener los nombres de los nodos y las celdas LTE con sus ECI
+cur2.execute("SELECT NODE_ID,CELL_NAME,NODE_NAME,LOCALCELLID FROM `escalondb2`.`cell` WHERE ((TIPO='L1800' OR TIPO='L2600') AND (NODE_ID LIKE 'VA%' OR NODE_ID LIKE 'SG%' OR NODE_ID LIKE 'SA%' OR NODE_ID LIKE 'AV%' OR NODE_ID LIKE 'CYL%' OR NODE_ID LIKE 'CT%'));")
+rows_lte_eci=cur2.fetchall()
+
+
+cur3.execute("DROP TABLE CELDAS_LTE;")
+cur3.execute("CREATE TABLE CELDAS_LTE (ID,eci,nombre);")
+
+registro=[""]
+
+#Volcado a SQLite local de celda,eci,nombre
+for fila2 in rows_lte_eci:
+    celda=fila2[1]
+    eci=int(fila2[3])
+    nombre_nodo_lte=fila2[2]
+    try:
+        cur3.execute('INSERT INTO CELDAS_LTE(ID,eci,nombre) VALUES (?,?,?)', (celda,eci,nombre_nodo_lte))
+    except: pass
+
+#Agrupado por celdas
+cur3.execute('SELECT ID,eci,nombre FROM CELDAS_LTE GROUP BY ID')
+celdas_agrupado=cur3.fetchall()
+
+
+#Generaci?n de registros para volcar a csv
+for celdas_lte in celdas_agrupado:
+    registro[0]='21401'
+
+    try:
+        eci=celdas_lte[1]
+        celda=celdas_lte[0]
+        nombre_nodo_lte=celdas_lte[2]
+    except: nombre_nodo_lte="N/A"
+
+    try:
+        if celdas_lte[0][5]=='K':
+
+            registro[0]='21401'
+            registro.append(eci)
+            registro.append('1024')
+            registro.append('0')
+            registro.append('0')
+            registro.append('0')
+            registro.append('-1')
+            registro.append(celda +'_'+ nombre_nodo_lte + '_L1800')
+            registro.append('0')
+            registro.append(' ')
+            registro.append('-1')
+            registro.append('-1')
+            registro.append('-1')
+            wr.writerow(registro)
+            registro=[""]
+    except: pass
+
+    try:
+        if celdas_lte[0][5]=='L':
+
+            registro[0]='21401'
+            registro.append(eci)
+            registro.append('1024')
+            registro.append('0')
+            registro.append('0')
+            registro.append('0')
+            registro.append('-1')
+            registro.append(celda +'_'+ nombre_nodo_lte + '_L2600')
+            registro.append('0')
+            registro.append(' ')
+            registro.append('-1')
+            registro.append('-1')
+            registro.append('-1')
+            wr.writerow(registro)
+            registro=[""]
+    except: pass
+
+gmon_clf.close()
+
+cnx3.commit()
+
+cur3.close()
+cur2.close()
